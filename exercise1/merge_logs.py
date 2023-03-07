@@ -4,6 +4,7 @@ import time
 
 import argparse
 
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -52,19 +53,18 @@ def _validate_files(*args: Path) -> None:
             raise FileNotFoundError(f"File <{file_path}> is directory or not exists. Please choose correct file path.")
 
 
-def _merge_logs(path_a: Path, path_b: Path, output_file) -> None:
+def _merge_logs(path_a: Path, path_b: Path, output_file: Path) -> None:
     print("Start merging...")
     with open(path_a, 'rb') as log_a, open(path_b, 'rb') as log_b, open(output_file, 'wb') as output:
         line_a, line_b = log_a.readline(), log_b.readline()
 
         while line_a and line_b:
-            # TODO dry below
             dict_a, dict_b = json.loads(line_a), json.loads(line_b)
             timestamp_str_a, timestamp_str_b = dict_a.get("timestamp"), dict_b.get("timestamp")
-            # TODO validating
-            timestamp_a, timestamp_b = datetime.strptime(timestamp_str_a, _TIMESTAMP_MASK), datetime.strptime(timestamp_str_b, _TIMESTAMP_MASK)
 
-            # TODO dry
+            timestamp_a = datetime.strptime(timestamp_str_a, _TIMESTAMP_MASK)
+            timestamp_b = datetime.strptime(timestamp_str_b, _TIMESTAMP_MASK)
+
             if timestamp_a <= timestamp_b:
                 output.write(line_a)
                 line_a = log_a.readline()
@@ -72,29 +72,22 @@ def _merge_logs(path_a: Path, path_b: Path, output_file) -> None:
                 output.write(line_b)
                 line_b = log_b.readline()
 
-
-        # TODO do explicit
-        remain_log = log_a if line_a is not None else log_b
-        output.write(remain_log.read())
+        remain_log = log_a if line_a else log_b
+        remain_line = line_a if line_a else line_b
+        output.write(remain_line + remain_log.read())
 
 
 def main():
-    """
-    > python3 log_generator.py ./logs
-    > python3 merge_log.py logs/log_a.jsonl logs/log_b.jsonl -o result/
-    """
     args = _parse_args()
-
     t0 = time.time()
     path_log_a, path_log_b = Path(args.path_log_a), Path(args.path_log_b)
     _validate_files(path_log_a, path_log_b)
 
     output_dir = Path(args.output_dir)
-    output_file = output_dir.joinpath(_OUTPUT_LOG_FILENAME)
+    path_output_file = output_dir.joinpath(_OUTPUT_LOG_FILENAME)
     _create_dir(output_dir)
-    _merge_logs(path_log_a, path_log_b, output_file)
-
-    # TODO После слияния сделать проверку на потерю данных: а + в = слитый файл
+    _merge_logs(path_log_a, path_log_b, path_output_file)
+    # check_data_integrity()
     print(f"finished in {time.time() - t0:0f} sec")
 
 
